@@ -1,0 +1,155 @@
+library(MASS)
+library(stats)
+library(faraway)
+library(dtplyr)
+library(fBasics)
+library(ggplot2)
+library(leaps)
+library(lmtest)
+library(car)
+library(gplots)
+# data description
+data<- read.csv("boston.csv", header = T)
+head(data,5)
+Stat<- t(basicStats(data))[,c(2,3,4,7,5,6,16,15)]
+
+par(mfrow=c(2,2))
+plot(data$MEDV, main ="Scatter: Median House Prices"
+     ,xlab = "MEDV", ylab ="Price")
+
+hist(data$MEDV, main ="Histogram: Median House Prices"
+     ,xlab = "MEDV")
+
+data <- data[, c(ncol(data), 1:(ncol(data) - 1))]
+Full_model<-lm(MEDV~.,data=data)
+summary(Full_model)
+
+
+# Box-Cox transformation for response variable
+bc_response<- boxcox(Full_model, plotit = F, seq(-1,2, by=0.1))
+lambda_response <- bc_response$x[which.max(bc_response$y)]
+data[[1]] <- if(lambda_response == 0) log(data$MEDV) else(data$MEDV^lambda_response - 1) / lambda_response
+print(lambda_response)
+
+
+data[[2]]<-log(data$CRIM); data[[4]]<-sqrt(data$INDUS)
+data[[6]]<- log(data$NOX); data[[8]]<-data$AGE^2
+data[[9]]<-log(data$DIS); data[[10]]<-log(data$RAD)
+data[[14]]<-sqrt(data$LSTAT)
+
+
+
+plot(data$MEDV, main ="Scatter: lambda transformed Median House Prices"
+     ,xlab = "MEDV",ylab ="Price")
+hist(data$MEDV, main ="lambda transformed Median House Prices"
+     ,xlab = "MEDV")
+
+
+panel.hist <- function(x, ...)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5) )
+  h <- hist(x, plot = FALSE)
+  breaks <- h$breaks; nB <- length(breaks)
+  y <- h$counts; y <- y/max(y)
+  rect(breaks[-nB], 0, breaks[-1], y, col="cyan", ...)
+}
+panel.cor <- function(x, y, digits=2, prefix="", cex.cor)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- cor(x, y)
+  txt <- format(c(r, 0.123456789), digits=digits)[1]
+  txt <- paste(prefix, txt, sep="")
+  if(missing(cex.cor)) cex <- 0.8/strwidth(txt)
+  text(0.5, 0.5, txt, cex = cex * abs(r))
+}
+
+pairs(data, lower.panel=panel.cor, upper.panel=panel.smooth, 
+      diag.panel=panel.hist, main="My Data Description
+      pairs plot")
+distmat <- cor(data)
+heatmap.2(as.matrix(distmat), 
+          col = redgreen(75), 
+          cexRow = 0.5, 
+          key = TRUE, 
+          symkey = FALSE, 
+          density.info = "none", 
+          trace = "none")
+
+# Model building 
+Full_model<-lm(MEDV~.,data=data)
+summary(Full_model)
+
+# model selection
+b <-regsubsets(MEDV~.,data=data,nvmax =13 )
+rs <-summary(b)
+rs$which
+par(mfrow=c(1,1))
+AIC <- 506*log(rs$rss/506) + (2:14)*2
+plot(AIC ~ I(1:13), ylab="AIC", xlab="Number of Regressors") 
+which.min(AIC)
+#Adjusted
+plot(2:14,rs$adjr2,xlab="No. of Parameters",ylab="Adjusted R-square")
+which.max(rs$adjr2)
+#Cp
+plot(2:14,rs$cp,xlab="No. of Parameters",ylab="Cp Statistic")
+abline(0,1)
+which.min(rs$cp)
+
+T<-data.frame(AIC=c(10,11), Adjusted.R2=c(9,10), Mallows.Cp=c(9,10))
+row.names(T)<-c("Predictors","Parameters")
+#under AIC
+Reduced.model.AIC<- update(Full_model,.~.-ZN-INDUS-AGE)
+summary(Reduced.model.AIC)
+# Adjusted and Cp
+Reduced.model.adjR2<-update(Reduced.model.AIC,.~.-CRIM)
+summary(Reduced.model.adjR2)
+
+m<- data.frame(Full.model=c(0.2612,0.7809,0.7751 ), Reduced.model.AIC=
+                 c(0.2607, 0.7804,0.776 ),Reduced.model.adjR2=c(0.261,0.7795
+                                                                ,0.7755 ))
+row.names(m)<-c("RMSE","R-squared","Adjusted R-squared")
+# Model diagnostics
+VIF<-data.frame(VIF=vif(Reduced.model.AIC))
+t(VIF)
+
+vif(Reduced.model.adjR2)
+par(mfrow=c(1,2))
+plot(Reduced.model.AIC,1)
+plot(Reduced.model.AIC,2)
+
+AIC(Reduced.model.AIC,Reduced.model.adjR2)
+
+
+anova(Reduced.model.adjR2,Reduced.model.AIC)
+
+
+# Possible Interaction Effect on the selected model
+model1 <- lm(MEDV~CRIM*(CHAS+RAD+LSTAT)+CHAS*(RM+NOX)+NOX+RM*(DIS+LSTAT+RAD)+
+              RAD*(TAX+PTRATIO+B) +TAX*(LSTAT+B+PTRATIO)+B*LSTAT, data = data)
+summary(model1)
+
+model2<-update(model1,.~.+I(CRIM^2)+I(NOX^2)+I(RM^2)+I(DIS^2)+I(RAD^2)
+               +I(PTRATIO^2)+I(B^2)+I(LSTAT^2)+I(TAX^2)+I(CHAS^2))
+summary(model2)
+
+model2_reduced<-update(model2,.~.-I(CRIM^2)-I(NOX^2)-I(CHAS^2)-I(RAD^2)
+                       -I(LSTAT^2)-I(TAX^2)-I(RM^2)-I(PTRATIO^2))
+summary(model2_reduced)
+
+
+AIC(model1,model2_reduced)
+
+plot(model2_reduced,1)
+plot(model2_reduced,2)
+
+
+mm<- data.frame(Selected.model=c(0.2607, 0.7804,0.776,88.36437 ),
+                model.interaction=c(0.2002,0.8745,0.868,-164.6589  ), 
+        model.interaction.with.squres.orders=c(0.1965,0.8795,0.8727,-181.2006))
+row.names(mm)<-c("RMSE","R-squared","Adjusted R-squared","AIC")
+
+#summary(lm(MEDV~(CRIM+CHAS + NOX + RM + DIS + RAD + TAX + PTRATIO + B + 
+ #                  LSTAT)^2,data=data))
+
