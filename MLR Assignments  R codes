@@ -1,0 +1,602 @@
+#-------------------HWK1-------------------------#
+library(faraway)
+library(tidyverse)
+library(MASS)
+library(lmtest)
+library(ggplot2)
+head(teengamb)
+
+y<-lm(gamble~sex+status+income+verbal, data = teengamb)
+sumary(y)
+#1)
+
+# b) 
+res<- resid(y)
+which.max(res)
+res[24]
+# Case (row-number) 24 gambles more than the model expects
+
+#c)
+Mean<-mean(res)
+Median<-median(res)
+data.frame(Mean=Mean,Median= Median)
+
+# d)
+cor(y$fitted.values,res)
+
+# e)
+
+cor( teengamb$income,res)  
+# f) 
+sumary(y)  
+
+
+
+#### 2.4)
+head(prostate)
+y1<-lm(lpsa~lcavol, prostate)
+sumary(y1)   
+y1<-lm(lpsa~lcavol, prostate)
+
+resid_error <- function(y1) {
+  s <- invisible(summary(y1))
+  data.frame(
+    "model" = formula(y1) %>% deparse(),
+    "sigma" = s$sigma,
+    "r_squared" = s$r.squared
+  )
+} 
+resid_error_data <- resid_error(y1)
+predictors_to_add <- c("lweight", "svi", "lbph", "age", "lcp", "pgg45"
+                       , "gleason")
+for (p in predictors_to_add) {
+  f <- formula(y1) %>% deparse() %>% paste("+", p)
+  y1 <- update(y1, f)
+  resid_error_data <- bind_rows(resid_error_data, resid_error(y1))
+}
+resid_error_data %>% 
+  pivot_longer(
+    cols = -model, 
+    names_to = "key",  
+    values_to = "value"  
+  ) %>% 
+  ggplot(aes(model, value, color = key, group = key)) +
+  geom_path() +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))+
+  ggtitle("Trend Analysis") +
+  theme(
+    panel.background = element_blank(),    
+    panel.border = element_rect(color = "black", fill = NA),  
+    panel.grid.major = element_line(color = "grey80"),        
+    panel.grid.minor = element_line(color = "grey90"),       
+    plot.title = element_text(hjust = 0.5)                   
+  )
+
+# 2.5)
+plot(prostate$lcavol,prostate$lpsa, xlab ="lcavol",
+     ylab ="lpsa", col="blue")
+
+y2 <- lm(lcavol ~ lpsa, prostate)
+sumary(y2)
+y3 <- lm(lpsa ~ lcavol, prostate)
+sumary(y3)
+
+ggplot(prostate, aes(lcavol, lpsa)) +
+  geom_point(alpha = .5) +
+  geom_line(aes(x = predict(y2), color = "lcavol ~ lpsa")) +
+  geom_line(aes(y = predict(y3), color = "lpsa ~ lcavol")) +
+  geom_point(aes(y = 2.48, x = 1.36), shape = 1, size = 10) +
+  ggtitle("Regression lines") +
+  theme(
+    panel.background = element_blank(),    
+    panel.border = element_rect(color = "black", fill = NA),  
+    panel.grid.major = element_line(color = "grey80"),        
+    panel.grid.minor = element_line(color = "grey90"),       
+    plot.title = element_text(hjust = 0.5)                   
+  )
+
+#4)
+
+xbar<- 5 ; ybar<-3; Sxx<-160;Sxy<-80 ; Syy<-83.2; n=20; p=2; k=1
+#a)
+B_1<-Sxy/Sxx
+B_o<- ybar-B_1*xbar
+Sigma_square<- (Syy-B_1*Sxy)/(n-p)  ; Sigma_square<- SSE/(n-p)
+# b) ANova table
+SSR<-(Sxy)^2/Sxx
+SST<-Syy 
+SSE<- SST-SSR
+MSR=SSR
+MSE=SSE/(n-k-1)
+F_stat= MSR/MSE
+
+Anova_table<-data.frame(names=c("Regression","Error","Total"),
+                        SS=c("SSR=40","SSE=43.2","SST=83.2"), 
+           df=c(1,18,19), MS=c("40","2.4"," "),F_stat=c(16.667,"",""))
+
+# c)
+y_5<- B_o+ B_1*5
+
+t<-qt((1-(0.05/2)),n-p)
+lower_CL<- y_5-t*(sqrt(MSE)*sqrt((1/n)+((5-xbar)^2/Sxx)))
+upper_Cl<- y_5+t*(sqrt(MSE)*sqrt((1/n)+(5-xbar)^2/Sxx))
+
+
+# d)
+ y_9<- B_o+B_1*9
+
+ l_cl<- y_9-t*(sqrt(MSE)*sqrt(1+(1/n)+((9-xbar)^2/Sxx)))
+ u_cl<- y_9+t*(sqrt(MSE)*sqrt(1+(1/n)+((9-xbar)^2/Sxx)))
+
+ 
+#--------------------------HWK2----------------------
+ 
+ 
+# 3) 
+m1<-lm(lpsa~lcavol+lweight+ age+lbph+svi+lcp+gleason+pgg45,prostate) 
+sumary(m1)
+#a)
+age_coeff = m1$coefficients["age"]
+conf_interval_90 = confint(m1, "age", level = 0.9)
+conf_interval_95 = confint(m1, "age", level = 0.95)
+conf_table = data.frame(Coefficient = age_coeff,
+  CI_90_Lower = conf_interval_90[1],
+  CI_90_Upper = conf_interval_90[2],  
+  CI_95_Lower = conf_interval_95[1],  
+  CI_95_Upper = conf_interval_95[2]
+)
+
+#b)
+library(ellipse)
+conf<-confint(m1,c("age","lbph"),level = 0.95)
+Conf_int<-data.frame(CI_lower=conf[,1],CI_upper=conf[,2])
+
+plot(ellipse(m1, c('age', 'lbph')), type = "l")
+points(0, 0, pch = 1)
+abline(v= conf[1,], lty = 2)
+abline(h= conf[2,], lty = 2)
+#Test is age=lbph=0 and age=0 and lbph=0
+
+#d)
+m2<-lm(lpsa~lcavol+lweight+svi,prostate)
+sumary(m2)
+anova(m1,m2)
+#Choose m1 over m2
+
+# 4)
+names(teengamb)
+m3<-lm(gamble~., teengamb)
+sumary(m3)
+
+# a)  sex and income
+# b) There is -22.11833 change in gamble given 1 increase in sex.
+  # with female coded as  1, means that females gamble less than males.
+#c)
+m4<-lm(gamble~income, teengamb)
+sumary(m4)
+anova(m3,m4)
+
+#-------------Hwk3-----------------------
+
+m5<-lm(gamble~.,teengamb)
+sumary(m5)
+
+#a)
+average_male<-summarise_all(filter(teengamb, sex == 0), mean)
+average_male
+predict(m5,average_male, interval = "confidence", level = 0.95)
+
+#b)
+maximum_male<-summarise_all(filter(teengamb, sex == 0), max)
+maximum_male
+predict(m5,maximum_male, interval = "confidence",level = 0.95)
+
+#c)
+m6<-lm(sqrt(gamble)~.,teengamb)
+sumary(m6)
+predict(m6,average_male,interval = "confidence", level = 0.95)^2
+
+#d
+female<- data.frame(sex=1,status=20, income=1,verbal=10)
+female
+predict(m6,female,interval = "confidence",level = 0.95)^2
+
+
+
+#------------------------------Hwk4--------------------------
+
+#2) 6.2
+
+m7<-lm(gamble~.,teengamb)
+sumary(m7)
+
+# a) H0: constant variance
+plot(fitted(m7),residuals(m7),xlab="Fitted",ylab="Residuals",
+     main = "TEENGAMB: Fitted vs. Residuals")
+abline(h=0)
+
+plot(fitted(m7),abs(residuals(m7)),xlab="Fitted",ylab="|Residuals|"
+     ,main = "TEENGAMB: Fitted vs. abs(Residuals)")
+
+plot(fitted(m7),sqrt(abs(residuals(m7))), 
+     xlab="Fitted",ylab=expression(sqrt(hat(epsilon))),
+     main="TEENGAMB: fittted vs. sqrt(residuals)")
+
+
+
+
+
+# b) normality 
+
+qqnorm(residuals(m7),ylab="Residuals",main="Q-Q Plot")
+qqline(residuals(m7))   
+
+
+
+# c) Leverage
+
+hatv <- hatvalues(m7)
+p = sum(hatv)
+p
+two_p<- 2*p/47
+hatv[hatv>two_p]
+
+residuals(m7)[hatv>two_p]
+teengamb[hatv>two_p,-5]
+halfnorm(hatv,4,ylab="Leverages")
+
+
+# d) outlier
+stud = rstudent(m7)
+order<-stud[order(stud)]
+bonferroni = qt(.05/(47*2),47-5-1)
+bonferroni
+stud[abs(stud)>abs(bonferroni)]
+# 24 is the outlier 
+
+###(e) Check for influential points.
+
+cook <- cooks.distance(m7)
+halfnorm(cook,2,ylab="Cook’s distances")
+#indeed 24 is the influential point
+cook[order(cook)]
+
+
+#f) structural relationship between the predictors and the response
+
+plot(m7$fitted.values ,main="Scatter Plot",
+     xlab="Predictor", ylab="Response")
+par(mfrow=c(4,4))
+
+plot(m7) 
+### 6.8
+
+m8<-lm(divorce~unemployed+femlab+marriage+birth+military, divusa)
+sumary(m8)
+
+library(lmtest)
+dwtest(divorce~unemployed+femlab+marriage+birth+military,data =divusa)
+acf(m8$residuals,lag.max = 5)
+Box.test(m8$residuals, lag = 5 ,type = "Ljung")  ## correlated 
+
+#### 7.3
+m8<-lm(divorce~unemployed+femlab+marriage+birth+military, divusa)
+
+# a)
+x<- model.matrix(m8)[, -1]
+e <-eigen(t(x) %*% x)
+e$val
+kappa<-sqrt(e$val[1]/e$val) 
+# there is no  collinearity which needs to be studied  
+
+# b)
+vif(m8)
+# Suggests no correlation between variables. 
+
+# c)
+m9<-lm(divorce~femlab+marriage+birth, divusa)
+sumary(m9)
+vif(m9)
+
+#-----------------------Hwk5---------------------
+
+
+#9.2
+data(cornnit)
+head(cornnit)
+
+plot(cornnit$yield,cornnit$nitrogen)
+m10<- lm(yield~., cornnit)
+sumary(m10)
+
+boxcox(m10, plotit = T, lambda = seq(1,4,by=0.1))
+
+m11<-lm(yield~nitrogen+I(nitrogen^2)+I(nitrogen^3), cornnit)
+sumary(m11)
+par(mfrow=c(2,2))
+plot(m11)
+dwtest(m11)
+
+acf(resid(m11))
+#Box.test(resid(m11),lag = 5, type = "Ljung")
+
+
+#9.3
+data(ozone)
+head(ozone,3)
+m12<-lm(O3~temp+humidity+ibh,ozone )
+sumary(m12)
+
+boxcox_result<-boxcox(m12, plotit = T, lambda = seq(-0.5,1,by=0.1))
+
+best_lambda <- boxcox_result$x[which.max(boxcox_result$y)]
+print(best_lambda)
+
+m13<-lm(O3^(1/3)~temp+humidity+ibh,ozone )
+sumary(m13)
+
+
+
+
+# 14.1
+
+m14<-sumary(lm(gamble~., teengamb))
+
+summary(lm(gamble ~ sex*(income+verbal+status),data = teengamb))
+
+model<-summary(lm(gamble ~ sex*(income)+verbal+status,data = teengamb))
+model
+
+
+#---------------------------Hwk6-------------------
+
+#10.2
+data("teengamb")
+head(teengamb,3)
+
+# a)
+m15<-sumary(lm(gamble~.,teengamb))
+ sumary(update(m15,.~.-status))
+mm<- sumary(update(m15,.~.-status-verbal)) 
+dwtest(mm)
+
+plot(update(m15,.~.-status-verbal))
+
+# b)
+ library(leaps) # install if you dont have it already
+ b <-regsubsets(gamble~.,data=teengamb)
+ rs <-summary(b)
+ rs$which
+
+ AIC <- 47*log(rs$rss/47) + (2:5)*2
+ plot(AIC ~ I(1:4), ylab="AIC", xlab="Number of Regressors") 
+ which.min(AIC)
+ #c)
+ plot(2:5,rs$adjr2,xlab="No. of Parameters",ylab="Adjusted R-square")
+ which.max(rs$adjr2)
+ 
+ # d)
+ 
+ plot(2:5,rs$cp,xlab="No. of Parameters",ylab="Cp Statistic")
+ abline(0,1)
+ which.min(rs$cp)
+
+ 
+ #10.8 
+ 
+ data(odor)
+head(odor,2) 
+
+#a)
+m16<-lm(odor~temp+gas+pack+I(temp^2)+I(gas^2)+I(pack^2)+
+                 temp*gas+temp*pack+gas*pack,odor)
+summary(m16)
+
+#b)
+m17<-lm(odor~temp+gas+pack+I(temp^2)+I(gas^2),odor)
+summary(m17)
+
+#c) 
+summary(step(m16))  
+
+# d)
+m18<- lm(odor~polym(temp,gas,pack,degree = 2),odor)
+summary(m18)  # they are the same
+?polym
+
+#e)
+summary(step(m18))
+
+
+y <- -29.611 - 21.375 * odor$pack
+
+min_index <- which.min(y)
+min_pack <- odor$pack[min_index]
+min_y <- y[min_index]
+
+plot(odor$pack, y, col = "blue", pch = 16, main = "Plot of y vs. pack",
+     xlab = "pack", ylab = "y")
+points(min_pack, min_y, col = "red", pch = 19, cex = 1.5)
+
+#-----------------------HWK7-----------------------------
+
+#
+# Load required libraries
+library(mgcv)
+library(graphics)
+library(ggplot2)
+library(sm)
+
+
+# Load dataset
+data("teengamb")
+head(teengamb, 2)
+
+# Fit a linear model
+m19 <- lm(gamble ~ income, data = teengamb)
+sumary(m19)
+
+
+# (a) Scatter plot 
+data <- data.frame(income = teengamb$income, gamble = teengamb$gamble)
+plot(data, main = "Scatter plot: Income vs Gamble", xlab = "Income", ylab = "Gamble")
+
+
+# (b) Kernel smoothing
+par(mfrow=c(2,2))
+
+h_value <- h.select(data$income, data$gamble)
+print(paste("Selected bandwidth (h):", h_value))
+with(data,sm.regression(income, gamble, 
+      h=h_value))
+
+
+
+# (c) smoothing splines
+
+with(data, {
+  plot(gamble ~ income, col = gray(0.75), main = "Smoothing Spline Fit:df=Automtic")
+  spline_fit <- smooth.spline(income, gamble)
+  lines(spline_fit, lty = 2, lwd = 2)
+  print(spline_fit$df)  
+})
+
+
+# with larger df
+with(data, {
+  plot(gamble ~ income, col = gray(0.75), main = "Smoothing Spline Fit:df=larger")
+  spline_fit <- smooth.spline(income, gamble,df=10)
+  lines(spline_fit,col="red", lty = 2, lwd = 2)
+  print(spline_fit$df)  
+})
+
+
+# (d)  LOESS
+?loess
+with(data,{plot(gamble ~ income, col = gray(0.75), main = "LOESS Fit")
+  loess_fit <- loess(gamble ~ income, data,degree = 1,span = 0.75)
+  i <- order(income)
+  lines(data$income[i], loess_fit$fitted[i], lwd = 2)
+})
+?loess
+
+# (e)  95% confidence band
+ggplot(data, aes(x = income, y = gamble)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "loess", span=0.75) +
+  geom_smooth(method = "lm", linetype = "dashed", col = "black") +
+  ggtitle("LOESS & Linear Fit with 95% Confidence Band")
+
+
+ggplot(data, aes(x = income, y = gamble)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"), color = "red",
+              linetype = "solid") +
+  geom_smooth(method = "lm", linetype = "dashed", color = "black") +
+  ggtitle("Kernel Smoothing & Linear Fit ")
+ # theme_minimal()
+#f)
+library(quantreg)
+
+quant_25 <- rq(gamble ~ income, tau = 0.25, data = teengamb)
+quant_75 <- rq(gamble ~ income, tau = 0.75, data = teengamb)
+
+summary(quant_25)
+summary(quant_75)
+
+
+#g)
+library(stats)
+
+SS = getInitial(gamble~SSlogis(income,c,a,1/b), data )
+SS
+?SSlogis
+nmlod <- nls(gamble ~ (c) / (1 + exp(-b * (income - a))), 
+      data , 
+      start = list(c = 110.588241, a = 10.767303, b = 1/3.334553))
+summary(nmlod)
+
+
+
+with(data,{plot(income,gamble)
+  i <- order(income)
+  lines(data$income[i], predict(nmlod)[i], lwd = 2)
+})
+
+############### HWK 11 ##################
+y<- c(0,1,7,6,4,11,7,4,8,11,11,8,8,13,14,10,18,16,20,12)
+x<-c(1:20)
+m17<-glm(y~x-1,family = poisson(link = "identity"))
+summary(m17)
+std_error<-summary(m17)$coefficients["x","Std. Error"]
+upper<- m17$coefficients+ qt(0.95,20-1)*std_error
+lower<- m17$coefficients- qt(0.95,20-1)*std_error
+c(lower,upper)
+
+
+##################################################
+############# Hwk12 ###############################
+library(visreg)
+#a.
+data(menarche)
+mprob <- glm(cbind(Menarche, Total - Menarche) ~ Age,
+             binomial(link = probit), data = menarche)
+summary(mprob)
+
+LRT<-anova(mprob,test = "Chisq")
+
+goodness.of.fit<-mprob$deviance/mprob$df.residual  # tells goodness of Fit
+
+
+#b).
+
+p.obs <- menarche$Menarche / menarche$Total
+p.fit=mprob$fitted.values
+p.fit.se=predict(mprob, newdata=NULL, type="response", 
+                 se.fit=TRUE)$se.fit
+p.fit.lower95=p.fit-1.96*p.fit.se; 
+p.fit.upper95=p.fit+1.96*p.fit.se; 
+plot(menarche$Age, p.obs, xlab = "Age", ylab = "Proportion",
+     main = "Observed & Fitted Probabilities of Menarche (95% CI)")
+points(menarche$Age, p.fit, pch = 19)
+lines(menarche$Age, p.fit, lty = 1)
+lines(menarche$Age, p.fit.lower95, lty = 4, col = "blue")
+lines(menarche$Age, p.fit.upper95, lty = 4, col = "blue")
+legend("topleft", legend = c("Observed", "Fitted"),
+       col = c("red", "black"), pch = c(1, 19), lty = c(0, 1), 
+       cex = 1)
+
+
+
+#c)
+par(mfrow=c(2,2))
+plot(mprob)
+
+
+## d)
+par(mfrow=c(1,1))
+mlogit <- glm(cbind(Menarche, Total - Menarche) ~ Age,
+              binomial(link = logit), data = menarche)
+summary(mlogit)
+
+LRT1<-anova(mlogit,test = "Chisq")
+
+goodness.of.fit1<-mlogit$deviance/mlogit$df.residual  
+
+vis2 <- visreg(mlogit, xvar = "Age", scale = "response", plot = FALSE)
+plot(vis2, xlab = "Age", ylab = "Proportion",
+     main = "Observed & Fitted Probabilities of Menarche (95% CI)",
+     ylim = c(0, 1))
+points(menarche$Age, p.obs, pch = 1)
+points(menarche$Age, p.fit, pch = 19)
+lines(menarche$Age, p.fit, lty = 1)
+
+plot(mlogit)
+
+
+
+#e)
+
+Odds.Ratio<-exp(coef(mlogit)["Age"])
+exp(confint(mlogit,level = 0.95)["Age", ])
+
